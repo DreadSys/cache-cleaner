@@ -1,24 +1,54 @@
-# Header
-Write-Host "--- Advanced Cleanup Tool ---" -ForegroundColor Cyan
+# Elite System Cleanup Utility
+# Author: DevOps Learner
+Write-Host "--- Initiating Elite System Cleanup ---" -ForegroundColor Cyan
 
-# 1. Cleaning Temp Folders
-Write-Host "n[Cleaning Temporary Files]" -ForegroundColor Yellow
-$tempPaths = @($env:TEMP, "C:\Windows\Temp", "C:\Windows\Prefetch")
+$startSpace = [math]::round((Get-PSDrive C).Free / 1MB, 2)
 
-foreach ($path in $tempPaths) {
+# 1. Clean Temp folders
+$paths = @(
+    "$env:TEMP\*",
+    "C:\Windows\Temp\*",
+    "C:\Windows\Prefetch\*"
+)
+
+foreach ($path in $paths) {
+    Write-Host "Processing: $path" -ForegroundColor Yellow
+    Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# 2. Empty Recycle Bin
+Write-Host "Purging Recycle Bin..." -ForegroundColor Yellow
+Clear-RecycleBin -Force -ErrorAction SilentlyContinue
+
+# 3. Network Cache Flush
+Write-Host "Flushing DNS and Network Cache..." -ForegroundColor Yellow
+Clear-DnsClientCache | Out-Null
+
+# 4. Windows Update Cleanup
+Write-Host "Cleaning Windows Update Cache..." -ForegroundColor Yellow
+Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
+Remove-Item -Path "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
+Start-Service -Name wuauserv
+
+# 5. Browser Cache Purge
+$browserPaths = @(
+    "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache\*",
+    "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache\*",
+    "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Cache\*"
+)
+
+foreach ($path in $browserPaths) {
     if (Test-Path $path) {
-        Write-Host "Cleaning: $path" -ForegroundColor Gray
-        Get-ChildItem -Path $path -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "Purging Browser Cache: $path" -ForegroundColor Yellow
+        Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
-# 2. Empting Recycle Bin (Universal Method)
-Write-Host "n[Emptying Recycle Bin]" -ForegroundColor Yellow
-$Shell = New-Object -ComObject Shell.Application
-$Bin = $Shell.NameSpace(0xA)
-$Bin.Items() | ForEach-Object { $_.InvokeVerb("delete") }
-Write-Host "Recycle Bin processed." -ForegroundColor Green
+$endSpace = [math]::round((Get-PSDrive C).Free / 1MB, 2)
+$freed = $endSpace - $startSpace
 
-Write-Host "`n--- Cleanup Complete ---" -ForegroundColor Cyan
-Write-Host "Press any key to exit..." -ForegroundColor White
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+Write-Host "---------------------------------------" -ForegroundColor Green
+Write-Host "Cleanup Complete!" -ForegroundColor Green
+Write-Host "Total space recovered: $freed MB" -ForegroundColor Cyan
+Write-Host "System is now optimized." -ForegroundColor Green
+Pause
